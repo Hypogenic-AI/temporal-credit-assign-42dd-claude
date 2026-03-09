@@ -1,0 +1,34 @@
+{
+  "created_at": "2026-03-09T05:12:39.899154",
+  "stages": {
+    "resource_finder": {
+      "status": "completed",
+      "started_at": "2026-03-09T05:12:39.899505",
+      "completed_at": "2026-03-09T05:32:45.562872",
+      "success": true,
+      "outputs": {
+        "literature_review": "/workspaces/temporal-credit-assign-42dd-claude/literature_review.md",
+        "resources_catalog": "/workspaces/temporal-credit-assign-42dd-claude/resources.md",
+        "papers_dir": "/workspaces/temporal-credit-assign-42dd-claude/papers",
+        "datasets_dir": "/workspaces/temporal-credit-assign-42dd-claude/datasets",
+        "code_dir": "/workspaces/temporal-credit-assign-42dd-claude/code"
+      }
+    },
+    "experiment_runner": {
+      "status": "completed",
+      "started_at": "2026-03-09T05:32:45.563832",
+      "completed_at": "2026-03-09T07:42:30.298469",
+      "success": true,
+      "outputs": {
+        "success": true,
+        "return_code": 0,
+        "elapsed_time": 7784.71076130867,
+        "log_file": "/workspaces/temporal-credit-assign-42dd-claude/logs/execution_claude.log",
+        "transcript_file": "/workspaces/temporal-credit-assign-42dd-claude/logs/execution_claude_transcript.jsonl"
+      }
+    }
+  },
+  "current_stage": null,
+  "completed": true,
+  "completed_at": "2026-03-09T07:42:30.299289"
+}

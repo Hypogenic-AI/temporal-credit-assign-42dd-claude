@@ -1,0 +1,45 @@
+\section{Discussion}
+\label{sec:discussion}
+
+\subsection{Why Hierarchical Credit Assignment Does Not Emerge}
+
+Our results show that temporal heterogeneity alone is insufficient to produce emergent hierarchical credit assignment. We identify four contributing factors.
+
+\para{Weak inter-agent signal.} \ippo agents have no mechanism to model each other explicitly. Emergent hierarchy would require implicit modeling through the shared reward signal, which provides only an indirect and noisy gradient for learning about other agents' temporal structure. Methods like \mappo, which share a centralized critic, provide richer cross-agent information and might produce different dynamics.
+
+\para{Insufficient temporal diversity.} Our 1$\times$/2$\times$/4$\times$ frequency ratio may not create sufficient pressure for hierarchical specialization. The slowest agent still acts every 4 steps---far from the orders-of-magnitude differences seen in real systems (\eg a fleet manager updating every minute vs.\ vehicles deciding every 100ms). Larger ratios (\eg 1$\times$/10$\times$/100$\times$) could create stronger hierarchical pressure.
+
+\para{Homogeneous reward structure.} All agents receive the same team reward regardless of their temporal role. Differential reward signals---\eg higher rewards for coordinating agents or penalties proportional to decision frequency---might drive role specialization that leads to hierarchical credit patterns.
+
+\para{Environment scale.} Our gridworlds are relatively small ($8 \times 8$, 3 agents, 200 steps). Emergent phenomena in complex systems often require sufficient scale to manifest \citep{mahajan2019maven}. Environments like SMAC \citep{rashid2018qmix} or MacDec-POMDP settings \citep{amato2019modeling} with larger state spaces and more agents could provide the conditions for hierarchy to emerge.
+
+\subsection{Task Structure Determines Heterogeneity's Effect}
+
+The most practically relevant finding is the strong task-structure dependence of heterogeneity's effect on performance. In \foraging, heterogeneity produces a large advantage ($d = 6.56$) because the reward structure naturally complements temporal diversity: slow agents that collect $2\times$ reward per resource benefit from having fast agents that explore more territory. In \relay and \rendezvous, heterogeneity creates a disadvantage ($d = -2.94$ and $-4.83$, respectively) because these tasks require agents to synchronize their actions, which is harder when agents operate at different frequencies.
+
+This finding has direct implications for system design. Practitioners deploying multi-agent systems with inherently heterogeneous timescales should assess whether their tasks are \emph{complementary} (agents contribute different capabilities at different speeds) or \emph{synchronization-dependent} (agents must coordinate timing). For the latter, explicit coordination mechanisms are essential.
+
+\subsection{Temporal Features Enable Awareness Without Hierarchy}
+
+The ablation reveals a nuanced picture. Temporal context features significantly improve heterogeneous agent coordination in \rendezvous ($p = 0.042$, $d = 1.53$), showing that agents \emph{can} learn to use temporal awareness. Yet this awareness does not produce hierarchical structure---it simply helps agents better predict when they will act next and adjust their movement accordingly. The MI analysis confirms this: temporal features drive cross-agent value function coupling (40--50\% MI reduction without them) without creating directional asymmetry.
+
+\subsection{Relation to Prior Work}
+
+Our negative result complements the positive findings of \tartwo \citep{kapoor2024tar2} and \stas \citep{chen2024stas}, which achieve effective agent-temporal credit assignment through \emph{explicit} architectural mechanisms (attention, Shapley values). Together, these results paint a consistent picture: temporal credit assignment in multi-agent settings requires architectural inductive biases and cannot be expected to emerge from environmental pressure alone. This aligns with the broader observation in \marl that simple methods like \mappo \citep{yu2022mappo} succeed through proper tuning rather than emergent complexity---the key factor is task structure and reward design, not temporal diversity.
+
+Our findings also speak to the literature on hierarchical RL. \feudal Networks \citep{vezhnevets2017feudal} and the Option-Critic architecture \citep{bacon2017option} achieve multi-timescale coordination by \emph{imposing} hierarchical structure. Our results suggest that this imposition is necessary---multi-timescale behavior alone does not produce hierarchical organization.
+
+\subsection{Limitations}
+\label{sec:limitations}
+
+\para{Environment simplicity.} Our $8 \times 8$ gridworlds with 3 agents are significantly simpler than standard \marl benchmarks like SMAC or MPE. Emergent phenomena may require more complex environments with richer interaction dynamics.
+
+\para{Training duration.} We train for 300 episodes, which is short for \marl. Longer training (10K+ episodes) might reveal slower-emerging hierarchical patterns that our experiments miss.
+
+\para{Algorithm scope.} We test only \ippo. Methods with parameter sharing (\mappo), centralized critics, or communication channels could show different patterns. Our negative result is specific to independent learning with shared rewards.
+
+\para{MI estimation fidelity.} Histogram-based MI estimation with 20 bins has limited resolution. Neural MI estimators such as MINE \citep{belghazi2018mine} could capture subtler dependencies that our approach misses.
+
+\para{Temporal diversity range.} The 1$\times$/2$\times$/4$\times$ ratio spans only a factor of 4. More extreme heterogeneity needs testing before general conclusions can be drawn.
+
+\para{No delayed feedback.} We study action frequency heterogeneity but not feedback delays. Adding observation or reward delays could change the dynamics and create different pressure for hierarchical organization.

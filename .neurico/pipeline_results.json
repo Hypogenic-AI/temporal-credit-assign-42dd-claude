@@ -1,0 +1,27 @@
+{
+  "success": true,
+  "stages": {
+    "resource_finder": {
+      "success": true,
+      "completion_marker": "/workspaces/temporal-credit-assign-42dd-claude/.resource_finder_complete",
+      "outputs": {
+        "literature_review": "/workspaces/temporal-credit-assign-42dd-claude/literature_review.md",
+        "resources_catalog": "/workspaces/temporal-credit-assign-42dd-claude/resources.md",
+        "papers_dir": "/workspaces/temporal-credit-assign-42dd-claude/papers",
+        "datasets_dir": "/workspaces/temporal-credit-assign-42dd-claude/datasets",
+        "code_dir": "/workspaces/temporal-credit-assign-42dd-claude/code"
+      },
+      "log_file": "/workspaces/temporal-credit-assign-42dd-claude/logs/resource_finder_claude.log",
+      "transcript_file": "/workspaces/temporal-credit-assign-42dd-claude/logs/resource_finder_claude_transcript.jsonl",
+      "elapsed_time": 1205.6603653430939
+    },
+    "experiment_runner": {
+      "success": true,
+      "return_code": 0,
+      "elapsed_time": 7784.71076130867,
+      "log_file": "/workspaces/temporal-credit-assign-42dd-claude/logs/execution_claude.log",
+      "transcript_file": "/workspaces/temporal-credit-assign-42dd-claude/logs/execution_claude_transcript.jsonl"
+    }
+  },
+  "work_dir": "/workspaces/temporal-credit-assign-42dd-claude"
+}

@@ -1,0 +1,8 @@
+\section{Conclusion}
+\label{sec:conclusion}
+
+We investigated whether multi-agent RL systems with heterogeneous decision horizons spontaneously develop hierarchical temporal credit assignment. Across three cooperative gridworld environments and 45 experimental runs, we find no evidence of emergent hierarchy: mutual information between agent value functions shows no directional asymmetry from slow to fast agents. Instead, temporal heterogeneity produces task-dependent performance effects driven by reward structure complementarity---a 45\% advantage in role-complementary tasks but a 17\% disadvantage in synchronization-dependent tasks. Temporal context features improve coordination only when synchronization is critical ($p = 0.042$), demonstrating that agents can learn temporal awareness without developing hierarchical structure.
+
+Our key takeaway is that hierarchical temporal credit assignment must be explicitly designed into multi-agent architectures---through mechanisms like attention-based decomposition \citep{kapoor2024tar2, chen2024stas}---rather than expected to emerge from temporal diversity alone. This negative result narrows the search space for emergent coordination and points toward architectural inductive biases as the path forward for multi-timescale \marl.
+
+Future work should test these findings at larger scale (more agents, more complex environments, more extreme temporal ratios), with richer algorithms (\mappo, communication channels), and with neural MI estimators that can capture subtler dependencies. Investigating whether \emph{feedback delays}---as opposed to action frequency differences---create different emergence dynamics remains an open question.

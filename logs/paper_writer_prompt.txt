@@ -1,0 +1,797 @@
+You are an academic paper writer. Generate a complete NEURIPS style paper
+based on the experiment results provided.
+
+════════════════════════════════════════════════════════════════════════════════
+                         IMPORTANT: BEFORE YOU START
+════════════════════════════════════════════════════════════════════════════════
+
+Before writing any content, you MUST complete these steps:
+
+1. READ THE SKILL: Review the paper-writer skill at .claude/skills/paper-writer/SKILL.md
+2. READ THE STYLE GUIDE: Study templates/paper_writing/lab_style_guide.md carefully
+3. REVIEW EXAMPLES: Browse paper_examples/ for formatting and language patterns:
+   - Look at sections/1.introduction.tex for language style
+   - Look at tables/*.tex for table formatting
+   - Look at commands/*.tex for macro usage
+4. VERIFY COMMAND TEMPLATES: Command templates (math.tex, general.tex, macros.tex) are pre-copied to paper_draft/commands/
+
+CRITICAL: Reference example papers for FORMATTING and LANGUAGE STYLE only.
+Do NOT copy content, phrasing, or narrative structure from the example papers.
+The examples are in a different research domain - focus only on presentation style.
+
+════════════════════════════════════════════════════════════════════════════════
+                            EXPERIMENT REPORT
+════════════════════════════════════════════════════════════════════════════════
+
+# Emergent Temporal Credit Assignment in Asynchronous Multi-Agent RL with Heterogeneous Horizons
+
+## 1. Executive Summary
+
+We investigated whether multi-agent reinforcement learning systems with heterogeneous decision horizons spontaneously develop hierarchical temporal credit assignment strategies. Using three custom cooperative gridworld environments with agents operating at 1x, 2x, and 4x action frequencies, we trained Independent PPO agents across 5 random seeds per condition (heterogeneous, homogeneous, and ablation without temporal context). Our key finding is that **temporal heterogeneity does not induce emergent hierarchical credit assignment** as hypothesized. Instead, heterogeneity creates task-dependent performance effects: a strong advantage in complementary-role tasks (foraging: +45%, p&lt;0.0001) but a disadvantage in synchronization-dependent tasks (rendezvous: -17%, p=0.001). Cross-agent mutual information is comparable between heterogeneous and homogeneous settings, with no detectable directional asymmetry from slow to fast agents. However, temporal context features significantly improve heterogeneous agent coordination in the rendezvous task (p=0.042), suggesting agents can learn to use temporal awareness even if hierarchical credit assignment does not spontaneously emerge.
+
+## 2. Goal
+
+**Hypothesis**: Multi-agent RL systems with heterogeneous decision horizons will spontaneously develop hierarchical temporal credit assignment strategies, where agents with longer horizons learn to implicitly model and compensate for shorter-horizon agents&#39; delayed feedback. This can be quantified through mutual information between agent value functions across different timescales.
+
+**Importance**: Real-world multi-agent systems (robotics swarms, autonomous vehicle coordination, distributed computing) involve agents operating at fundamentally different timescales. If hierarchical credit assignment emerges naturally from heterogeneous horizons, it would provide theoretical grounding for designing scalable MARL systems without hand-crafted coordination hierarchies.
+
+**Decomposed Sub-Hypotheses**:
+- **H1**: Heterogeneous-horizon agents achieve comparable or better team performance than homogeneous agents
+- **H2**: Mutual information I(V_i(t), V_j(t+τ)) between slow and fast agents&#39; value functions is higher than between same-speed agents
+- **H3**: Slow agents develop value functions that implicitly model fast agents (MI asymmetry: slow→fast &gt; fast→slow)
+- **H4**: Removing temporal context features degrades coordination, confirming learned strategies
+
+## 3. Data Construction
+
+### Environment Description
+
+We designed three cooperative gridworld environments (8x8 grid, 3 agents, 200 max steps):
+
+| Environment | Task | Key Challenge | Temporal Sensitivity |
+|---|---|---|---|
+| **CooperativeRelay** | Visit waypoints sequentially (agent i visits waypoint i) | Sequential dependencies | High (ordering matters) |
+| **MultiPaceForaging** | Collect resources (slow agents get more reward per collection) | Role complementarity | Low (independent collection) |
+| **SynchronizedRendezvous** | All agents converge to center | Synchronization across speeds | High (all must coordinate) |
+
+### Agent Configuration
+
+| Condition | Agent 0 | Agent 1 | Agent 2 |
+|---|---|---|---|
+| **Heterogeneous** | Acts every step (1x) | Acts every 2 steps (2x) | Acts every 4 steps (4x) |
+| **Homogeneous** | Acts every step (1x) | Acts every step (1x) | Acts every step (1x) |
+
+### Observation Space
+Each agent observes: own position (2), other agents&#39; positions (4), and temporal context features (3: normalized timestep, normalized action frequency, phase within action cycle). The ablation condition replaces temporal features with zeros.
+
+### Action Space
+5 discrete actions: stay, up, down, left, right.
+
+## 4. Experiment Description
+
+### Methodology
+
+#### High-Level Approach
+We used **Independent PPO** (IPPO) — each agent has its own actor-critic network trained with PPO, sharing only the team reward signal. This is intentionally minimal: any coordination must emerge from the shared reward rather than explicit communication or parameter sharing. This design isolates whether temporal heterogeneity itself drives emergent credit assignment patterns.
+
+#### Why IPPO?
+- MAPPO (shared critic) would confound the analysis by providing explicit cross-agent information
+- Value decomposition methods (QMIX) impose structural assumptions about credit assignment
+- IPPO is the cleanest setting to observe *emergent* coordination patterns
+
+### Implementation Details
+
+#### Tools and Libraries
+- Python 3.12, PyTorch 2.10.0
+- NumPy 1.26+, SciPy, scikit-learn
+- Custom gridworld environments (no external RL environment dependency)
+
+#### Network Architecture
+- 2-layer MLP (64 hidden units) with ReLU
+- Shared feature extractor for actor and critic heads
+
+#### Hyperparameters
+
+| Parameter | Value | Justification |
+|---|---|---|
+| Learning rate | 3e-4 | Standard for PPO |
+| γ (discount) | 0.99 | Long-horizon credit |
+| λ (GAE) | 0.95 | Standard balance |
+| Clip ε | 0.2 | Standard PPO |
+| PPO epochs | 4 | Per update cycle |
+| Batch size | 64 | Per mini-batch |
+| Entropy coef | 0.01 | Encourage exploration |
+| Update interval | Every 5 episodes | Batch updates |
+| Training episodes | 300 | Sufficient for convergence |
+
+### Experimental Protocol
+
+#### Conditions (3 × 3 = 9 configurations)
+- **3 Environments**: relay, foraging, rendezvous
+- **3 Conditions**: heterogeneous (1x/2x/4x), homogeneous (1x/1x/1x), ablation (heterogeneous without temporal features)
+
+#### Reproducibility
+- **Seeds**: 5 per condition (42, 123, 456, 789, 1024)
+- **Total runs**: 45 (3 envs × 3 conditions × 5 seeds)
+- **Hardware**: 2× NVIDIA RTX 3090 (24GB each), CPU used for training (gridworld too lightweight for GPU overhead)
+- **Total execution time**: ~35 minutes for main experiments, ~25 minutes for MI analysis
+
+### Evaluation Metrics
+1. **Team reward** (last 50 episodes): Primary performance measure
+2. **Cross-agent MI at lag 0**: Instantaneous coupling between value functions
+3. **MI decay rate**: How MI persists across time lags (ratio of MI at lag 5 / lag 0)
+4. **MI asymmetry**: Directional MI difference (slow→fast vs fast→slow)
+5. **Agent influence scores**: Lagged correlation of value function changes
+
+## 5. Results
+
+### 5.1 Performance Comparison
+
+| Environment | Heterogeneous | Homogeneous | Ablation | p-value (H vs O) | Cohen&#39;s d |
+|---|---|---|---|---|---|
+| **Relay** | 1.25 ± 1.5 | **3.56 ± 0.5** | 1.70 ± 0.5 | **0.004** | -2.94 |
+| **Foraging** | **20.67 ± 1.2** | 14.30 ± 0.7 | 20.43 ± 1.1 | **&lt;0.0001** | +6.56 |
+| **Rendezvous** | 149.95 ± 8.0 | **180.03 ± 2.5** | 139.28 ± 6.0 | **0.001** | -4.83 |
+
+**Finding for H1**: Heterogeneous agents outperform homogeneous **only** in foraging, where the reward structure naturally favors temporal diversity (slow agents collect 2x reward per resource). In tasks requiring synchronization (relay, rendezvous), homogeneous agents have a clear advantage. **H1 is partially supported** — heterogeneity helps when roles are complementary, hurts when synchronization is needed.
+
+### 5.2 Ablation: Temporal Context Features
+
+| Environment | With Temporal | Without Temporal | p-value | Cohen&#39;s d |
+|---|---|---|---|---|
+| Relay | 1.25 | 1.70 | 0.287 | -0.74 |
+| Foraging | 20.67 | 20.43 | 0.780 | +0.18 |
+| **Rendezvous** | **149.95** | **139.28** | **0.042** | **+1.53** |
+
+**Finding for H4**: Temporal context features significantly help only in the rendezvous task (p=0.042, d=1.53), the environment most dependent on synchronized coordination. This suggests agents *can* learn to use temporal awareness for coordination, but the effect is task-specific. **H4 is partially supported.**
+
+### 5.3 Mutual Information Analysis
+
+| Environment | Hetero MI (lag 0) | Homo MI (lag 0) | Ablation MI (lag 0) |
+|---|---|---|---|
+| Relay | 1.640 | 1.777 | 1.442 |
+| Foraging | 2.719 | 2.913 | 1.597 |
+| Rendezvous | 3.019 | 3.392 | 1.682 |
+
+| Environment | Hetero Decay | Homo Decay | Ablation Decay |
+|---|---|---|---|
+| Relay | 0.684 | 0.606 | 0.592 |
+| Foraging | 0.784 | 0.796 | 0.558 |
+| Rendezvous | 0.863 | 0.902 | 0.661 |
+
+**Finding for H2**: Contrary to hypothesis, **homogeneous agents show slightly higher cross-agent MI** than heterogeneous agents across all environments. This makes sense: agents operating at the same frequency naturally develop more correlated value functions because they observe similar temporal patterns. **H2 is not supported.**
+
+**MI Asymmetry**: Near zero in all conditions (&lt; 0.001). **H3 is not supported** — there is no evidence that slow agents develop value functions that preferentially model fast agents.
+
+**Key MI Insight**: The ablation condition shows dramatically lower MI (40-50% reduction), confirming that temporal features drive much of the cross-agent value function coupling, even though this coupling doesn&#39;t translate to emergent hierarchy.
+
+### 5.4 MI Decay Rate Analysis
+
+The MI decay rate (MI at lag 5 / MI at lag 0) reveals how persistent cross-agent temporal dependencies are:
+
+- **Heterogeneous** agents show slightly higher decay rates than homogeneous in relay and foraging, meaning their value functions maintain cross-agent information longer across time lags
+- **Rendezvous** shows the highest decay rates overall (0.86-0.90), indicating the strongest temporal dependencies
+- **Ablation** consistently shows faster MI decay, confirming temporal features help maintain cross-agent value function coupling
+
+### 5.5 Agent Influence Analysis
+
+In the foraging environment, influence scores (lagged value function change correlations) are consistently ~15-20% higher for heterogeneous agents compared to homogeneous agents. This suggests heterogeneous agents develop stronger inter-agent dependencies, even though this doesn&#39;t manifest as hierarchical credit assignment.
+
+## 6. Discussion
+
+### Key Findings Summary
+
+1. **Temporal heterogeneity does not induce emergent hierarchical credit assignment.** Agents with different decision frequencies do not spontaneously develop coordinator/executor roles. The mutual information between value functions shows no directional asymmetry that would indicate hierarchy.
+
+2. **Heterogeneity creates task-dependent advantages.** When task structure naturally complements temporal diversity (foraging with speed-dependent rewards), heterogeneous agents excel (+45%). When synchronization is required (rendezvous), homogeneity wins (-17%).
+
+3. **Temporal context features enable coordination awareness.** While not inducing hierarchy, temporal features significantly help heterogeneous agents coordinate in synchronization tasks (rendezvous: +7.6%, p=0.042).
+
+4. **Cross-agent value function coupling is driven by temporal features, not heterogeneity.** The ablation analysis reveals that temporal features, not decision frequency differences, are the primary driver of cross-agent MI.
+
+### Why the Hypothesis Was Not Supported
+
+Several factors explain why hierarchical credit assignment did not emerge:
+
+1. **Independent learning**: IPPO agents have no mechanism to model each other explicitly. Emergent hierarchy would require implicit modeling through the shared reward signal, which may be too weak a signal in these environments.
+
+2. **Environment scale**: Our gridworlds are relatively small (8×8, 3 agents, 200 steps). Emergent hierarchy may require larger-scale environments with longer temporal dependencies.
+
+3. **Homogeneous reward sharing**: All agents receive the same reward. Differential reward signals or agent-specific penalties might be needed to drive role specialization.
+
+4. **Limited temporal diversity**: The 1x/2x/4x frequency ratio may not be extreme enough. Larger ratios (e.g., 1x/10x/100x) could create stronger pressure for hierarchical organization.
+
+### Comparison to Literature
+
+- **TAR2** (Kapoor et al., 2024) and **STAS** (Chen et al., 2024) achieve credit assignment through *explicit* architectural mechanisms (attention, Shapley values). Our results suggest that analogous mechanisms do not emerge spontaneously from temporal heterogeneity alone.
+- **FeUdal Networks** (Vezhnevets et al., 2017) impose hierarchical structure by design. Our findings suggest that such structure must be imposed rather than expecting it to emerge.
+- **MAPPO** (Yu et al., 2022) demonstrates that simple methods with proper tuning suffice for cooperative MARL. Our results align: the key factor is task structure and reward design, not temporal diversity.
+
+### Surprises
+
+1. The foraging environment showed the strongest heterogeneity advantage despite being the least temporally coupled task — the benefit came from reward structure (slow agents collect 2× reward), not temporal coordination.
+2. MI asymmetry was essentially zero across all conditions. We expected at least some directional information flow.
+
+## 7. Limitations
+
+1. **Environment simplicity**: 8×8 gridworlds with 3 agents are much simpler than the MacroMARL or SMAC environments used in the literature. Emergent phenomena may require more complex environments.
+2. **Training duration**: 300 episodes is short for MARL. Longer training (10K+ episodes) might reveal slower-emerging hierarchical patterns.
+3. **Algorithm choice**: IPPO is the simplest MARL algorithm. Methods with parameter sharing (MAPPO) or centralized critics could show different patterns.
+4. **MI estimation**: Histogram-based MI with 20 bins has limited resolution. Neural MI estimators (MINE) could capture subtler dependencies.
+5. **Only 3 action frequencies tested**: The 1x/2x/4x ratio may be insufficient. More extreme heterogeneity needs testing.
+6. **No delayed feedback**: While the proposal mentioned feedback delays, we focused on action frequency heterogeneity. Adding delays could change the dynamics significantly.
+
+## 8. Conclusions
+
+### Summary
+We find **no evidence** that hierarchical temporal credit assignment spontaneously emerges from temporal heterogeneity in IPPO-based multi-agent RL. Instead, heterogeneity creates task-dependent performance effects driven primarily by reward structure complementarity, not emergent coordination mechanisms. The original hypothesis — that slow agents would learn to implicitly model and compensate for fast agents — is not supported by our mutual information analysis, which shows no directional asymmetry.
+
+### Implications
+- **For MARL system designers**: Temporal heterogeneity should be leveraged through explicit architectural mechanisms (as in TAR2, STAS) rather than expected to produce emergent coordination.
+- **For theory**: The absence of emergent hierarchy suggests that the shared reward signal in cooperative MARL is insufficient to drive hierarchical organization without additional inductive biases.
+- **For the community**: This negative result narrows the search space for emergent coordination, pointing toward explicit mechanisms rather than environmental pressure.
+
+### Confidence
+Moderate. Our experiments are systematic with proper statistical testing (5 seeds, Welch&#39;s t-tests, Cohen&#39;s d), but the environment scope is limited. The null result (no emergent hierarchy) could be an artifact of environment simplicity or training scale.
+
+## 9. Next Steps
+
+### Immediate Follow-ups
+1. **Scale up environments**: Test with MacroMARL MacDec-POMDP environments (Box Pushing, Warehouse) which have native support for heterogeneous macro-actions
+2. **Extreme temporal ratios**: Test 1x/10x/100x to create stronger hierarchical pressure
+3. **Longer training**: Run 10K-50K episodes to check for late-emerging hierarchical patterns
+4. **Centralized critic**: Use MAPPO to provide richer cross-agent information and check if hierarchy emerges with stronger inter-agent gradients
+
+### Alternative Approaches
+- **Neural MI estimator (MINE)**: Replace histogram MI with neural estimators for higher-fidelity cross-timescale dependency measurement
+- **Causal influence analysis**: Use counterfactual policy perturbation (as in COMA) to directly measure agent causal influence
+- **Emergent communication**: Add communication channels and observe if hierarchical protocols emerge
+- **Attention-based analysis**: Use STAS-style attention mechanisms and analyze learned attention patterns for hierarchical structure
+
+### Open Questions
+- At what scale of temporal heterogeneity (if any) does hierarchical credit assignment emerge?
+- Does delayed feedback (vs. action frequency) create different emergence dynamics?
+- Would intrinsic motivation or curiosity-driven exploration change the results?
+
+## 10. References
+
+1. Kapoor et al. (2024). Agent-Temporal Credit Assignment (TAR2). RLC 2024.
+2. Chen et al. (2024). STAS: Spatial-Temporal Return Decomposition. AAAI 2024.
+3. Yu et al. (2022). MAPPO: The Surprising Effectiveness of PPO in Cooperative MARL. NeurIPS 2022.
+4. Rashid et al. (2018). QMIX: Monotonic Value Function Factorisation. ICML 2018.
+5. Foerster et al. (2018). COMA: Counterfactual Multi-Agent Policy Gradients. AAAI 2018.
+6. Arjona-Medina et al. (2019). RUDDER: Return Decomposition for Delayed Rewards. NeurIPS 2019.
+7. Vezhnevets et al. (2017). FeUdal Networks for Hierarchical RL. ICML 2017.
+8. Bacon et al. (2017). The Option-Critic Architecture. AAAI 2017.
+
+## Appendix: File Structure
+
+```
+.
+├── REPORT.md                 # This report
+├── README.md                 # Project overview
+├── planning.md               # Research plan
+├── literature_review.md      # Pre-gathered literature review
+├── resources.md              # Resource catalog
+├── src/
+│   ├── environments.py       # Custom gridworld environments
+│   ├── agents.py             # Independent PPO implementation
+│   ├── analysis.py           # MI, TD-depth, influence metrics
+│   ├── run_experiments.py    # Main experiment runner
+│   ├── deep_mi_analysis.py   # Detailed MI analysis
+│   └── extract_results.py    # Results extraction
+├── results/
+│   ├── metrics.json          # Performance metrics
+│   ├── mi_analysis.json      # MI analysis results
+│   └── plots/                # All visualizations (17 plots)
+├── papers/                   # Downloaded research papers (22)
+└── code/                     # Cloned baseline repositories (5)
+```
+
+
+════════════════════════════════════════════════════════════════════════════════
+                            RESEARCH PLAN
+════════════════════════════════════════════════════════════════════════════════
+
+# Research Plan: Emergent Temporal Credit Assignment in Async MARL
+
+## Motivation &amp; Novelty Assessment
+
+### Why This Research Matters
+Real-world multi-agent systems (robotics, supply chains, autonomous vehicles) involve agents operating at different timescales. Understanding how credit assignment emerges under temporal heterogeneity is essential for designing scalable MARL systems that don&#39;t require hand-crafted coordination hierarchies.
+
+### Gap in Existing Work
+Per the literature review: TAR2 and STAS address joint agent-temporal credit but assume synchronous agents with uniform horizons. MacroMARL handles asynchronous macro-actions but lacks credit assignment analysis. No work studies whether hierarchical credit assignment *emerges* from heterogeneous decision frequencies, or quantifies this via mutual information between value functions.
+
+### Our Novel Contribution
+We test whether agents with heterogeneous decision frequencies spontaneously develop hierarchical temporal credit assignment, measured by mutual information between value functions across timescales. This bridges the gap between temporal abstraction (FeUdal Networks, Options) and multi-agent credit assignment (QMIX, STAS).
+
+### Experiment Justification
+- **Exp 1 (Baseline comparison)**: Compare homogeneous vs heterogeneous horizon agents on cooperative tasks to establish that heterogeneity affects learning dynamics
+- **Exp 2 (MI analysis)**: Compute mutual information between agent value functions at different time lags to detect emergent temporal dependencies
+- **Exp 3 (Ablation)**: Remove temporal context features to confirm coordination strategies are learned, not hard-coded
+
+## Research Question
+Do MARL agents with heterogeneous decision horizons spontaneously develop hierarchical temporal credit assignment strategies, and can this be quantified via mutual information between value functions?
+
+## Hypothesis Decomposition
+1. **H1**: Heterogeneous-horizon agents achieve comparable or better team performance than homogeneous agents on cooperative tasks requiring temporal coordination
+2. **H2**: Mutual information I(V_i(t), V_j(t+τ)) between slow and fast agents&#39; value functions is significantly higher than between same-speed agents
+3. **H3**: Slow agents develop value functions that implicitly model fast agents&#39; future contributions (higher TD-error propagation depth)
+4. **H4**: Removing temporal context features degrades coordination, confirming learned (not hard-coded) strategies
+
+## Methodology
+
+### Approach
+Custom gridworld cooperative environments with 3 agents at different action frequencies (1x, 2x, 4x). Train using Independent PPO with temporal context features. Analyze value function mutual information and TD-error propagation patterns.
+
+### Environments
+1. **Cooperative Relay**: Agents must pass an item across the grid in sequence. Different frequencies create natural temporal coordination challenges.
+2. **Multi-Pace Foraging**: Agents collect resources that appear at different rates, requiring coordination between fast scouts and slow collectors.
+3. **Synchronized Rendezvous**: All agents must reach a common location, but move at different speeds.
+
+### Baselines
+- Homogeneous agents (all same frequency)
+- No temporal context features
+- Random policy baseline
+
+### Evaluation Metrics
+- Cumulative team reward
+- I(V_i(t), V_j(t+τ)) mutual information
+- TD-error propagation depth
+- Coordination efficiency (synchronized actions / total)
+
+### Statistical Analysis
+- 5 random seeds per condition
+- Welch&#39;s t-test for performance comparison
+- Bootstrap confidence intervals for MI estimates
+
+## Timeline (1 hour total)
+- Planning: 5 min (done)
+- Implementation: 25 min
+- Experiments: 20 min
+- Analysis &amp; Documentation: 10 min
+
+## Success Criteria
+- Clear performance difference between homogeneous and heterogeneous conditions
+- Significant MI signal between slow and fast agents
+- Ablation confirms learned coordination
+
+
+════════════════════════════════════════════════════════════════════════════════
+                          LITERATURE REVIEW
+════════════════════════════════════════════════════════════════════════════════
+
+# Literature Review: Emergent Temporal Credit Assignment in Asynchronous Multi-Agent Reinforcement Learning with Heterogeneous Horizons
+
+## Research Area Overview
+
+This research investigates whether multi-agent RL systems with heterogeneous decision horizons spontaneously develop hierarchical temporal credit assignment strategies. The hypothesis posits that agents with longer horizons will learn to implicitly model and compensate for shorter-horizon agents&#39; delayed feedback, and that this emergence can be quantified through mutual information between agent value functions across timescales.
+
+The literature spans three intersecting subfields: (1) credit assignment in cooperative MARL, (2) temporal abstraction and hierarchical RL, and (3) asynchronous multi-agent decision-making.
+
+---
+
+## Key Papers
+
+### 1. Agent-Temporal Credit Assignment (TAR2) — Kapoor et al. (RLC 2024)
+- **arXiv**: 2412.14779
+- **Key Contribution**: First principled framework for **joint** agent-temporal credit decomposition. Decomposes episodic returns into per-agent, per-timestep rewards using learned temporal weights w_t and agent weights w&#39;_{i,t}.
+- **Methodology**: Uses alternating temporal and agent attention modules built on AREL. Temporal weights sum to 1 over time; agent weights sum to 1 over agents at each timestep.
+- **Theoretical Result**: Proven equivalent to potential-based reward shaping (preserves Nash equilibria). Policy gradient direction is preserved. Variance of advantage estimates grows linearly with agent count without proper decomposition.
+- **Environments**: SMACLite (5m_vs_6m), Alice &amp; Bob, Google Football
+- **Key Finding**: TAR2 + simple IPPO/MAPPO matches or beats dedicated MARL methods, suggesting credit assignment can be solved separately from the coordination algorithm.
+- **Code**: Not publicly available
+- **Relevance**: **Highest**. Directly addresses the agent-temporal credit intersection. However, does NOT address heterogeneous horizons or asynchronous execution.
+
+### 2. STAS: Spatial-Temporal Return Decomposition — Chen et al. (AAAI 2024)
+- **arXiv**: 2304.07520
+- **Key Contribution**: Dual transformer architecture for simultaneous spatial (agent) and temporal credit decomposition from episodic rewards.
+- **Methodology**: (1) Causal transformer for temporal decomposition (each timestep attends only to past); (2) Shapley attention for spatial decomposition using random coalition masks to approximate marginal contributions. STAS-ML variant interleaves both modules across stacked layers.
+- **Training**: Simple reconstruction loss — sum of all decomposed Shapley values should equal episodic return.
+- **Environments**: Alice &amp; Bob (grid-world with sequential cooperation), MPE (3, 6, 15 agents) — all with episodic-only rewards
+- **Key Results**: Robust to agent scaling (3→15 agents) while baselines degrade. Pearson correlation between credit and distance-to-target confirms meaningful decomposition.
+- **Code**: https://github.com/zowiezhang/STAS
+- **Relevance**: **Very high**. Provides a concrete architecture for joint spatial-temporal decomposition. Could be extended to heterogeneous horizons.
+
+### 3. LICA: Learning Implicit Credit Assignment — Zhou et al. (NeurIPS 2020)
+- **arXiv**: 2007.02529
+- **Key Contribution**: Implicit credit assignment via hypernetwork-based mixing critic that introduces multiplicative state-action associations into policy gradients.
+- **Methodology**: Centralized critic formulated as a hypernetwork mapping state → weights that mix individual action vectors into joint Q-value. Adaptive entropy regularization rescales entropy gradients inversely proportional to current policy entropy.
+- **Environments**: MPE (Predator-Prey, Cooperative Navigation), SMAC
+- **Key Results**: Outperforms COMA, MADDPG, SQDDPG. Mixing critic (CMix) provides richer credit assignment than MLP critic via multiplicative state embedding in gradients.
+- **Code**: Available within PyMARL2 framework
+- **Relevance**: **High**. Important baseline for implicit credit assignment approaches.
+
+### 4. RUDDER: Return Decomposition for Delayed Rewards — Arjona-Medina et al. (NeurIPS 2019)
+- **arXiv**: 1806.07857
+- **Key Contribution**: Reward redistribution to create return-equivalent MDPs with zero expected future rewards, simplifying Q-value estimation to computing means.
+- **Methodology**: (1) Reward redistribution creating return-equivalent Sequence-Markov Decision Processes (SDPs); (2) Return decomposition via contribution analysis using LSTMs to predict returns and attribute credit to state-action pairs.
+- **Theoretical Result**: Optimal reward redistribution makes expected future rewards zero. Return-equivalent SDPs preserve optimal policies.
+- **Environments**: Atari games (on top of PPO), artificial delayed reward tasks
+- **Key Results**: Significantly faster than MC, exponentially faster than MCTS and TD(λ) for delayed rewards.
+- **Code**: https://github.com/ml-jku/rudder
+- **Relevance**: **High**. Foundational work on temporal credit assignment. Single-agent but the theory of return-equivalent processes could extend to multi-agent settings.
+
+### 5. QMIX: Monotonic Value Function Factorisation — Rashid et al. (ICML 2018)
+- **arXiv**: 1803.11485
+- **Key Contribution**: Foundational value decomposition method for cooperative MARL. Learns a monotonic mixing network conditioned on global state.
+- **Methodology**: Individual agent Q-values mixed via hypernetwork with non-negative weights, ensuring monotonicity (∂Q_tot/∂Q_a ≥ 0). Enables greedy decentralized execution.
+- **Environments**: SMAC
+- **Relevance**: **Essential baseline**. The dominant value decomposition method in cooperative MARL.
+
+### 6. COMA: Counterfactual Multi-Agent Policy Gradients — Foerster et al. (AAAI 2018)
+- **arXiv**: 1705.08926
+- **Key Contribution**: Counterfactual baseline for multi-agent credit assignment. Each agent&#39;s advantage is computed by marginalizing over its actions while holding other agents&#39; actions fixed.
+- **Environments**: SMAC, StarCraft unit micromanagement
+- **Relevance**: **Important baseline** for explicit credit assignment.
+
+### 7. MAPPO: Multi-Agent PPO — Yu et al. (NeurIPS 2022)
+- **arXiv**: 2103.01955
+- **Key Contribution**: Shows that properly tuned PPO with parameter sharing achieves SOTA on cooperative MARL benchmarks, challenging the need for complex value decomposition.
+- **Environments**: SMAC, MPE, Google Football, Hanabi
+- **Relevance**: **Essential baseline**. Simple but strong baseline for cooperative MARL.
+
+### 8. Option-Critic Architecture — Bacon et al. (AAAI 2017)
+- **arXiv**: 1609.05140
+- **Key Contribution**: End-to-end learning of options (temporally extended actions) and their termination conditions within the options framework.
+- **Relevance**: **Moderate**. Provides theoretical foundation for temporal abstraction. Could be combined with multi-agent methods for hierarchical temporal credit assignment.
+
+### 9. FeUdal Networks — Vezhnevets et al. (ICML 2017)
+- **arXiv**: 1703.01161
+- **Key Contribution**: Hierarchical RL with a Manager (sets goals at lower temporal resolution) and a Worker (executes primitive actions). Manager operates at a coarser timescale.
+- **Relevance**: **Moderate-High**. Directly demonstrates heterogeneous decision horizons in a hierarchical setting. Conceptually similar to what might emerge in our multi-agent setting.
+
+### 10. MAVEN: Multi-Agent Variational Exploration — Mahajan et al. (NeurIPS 2019)
+- **arXiv**: 1910.07483
+- **Key Contribution**: Addresses committed exploration in value decomposition by conditioning on a shared latent variable that controls joint exploration.
+- **Relevance**: **Moderate**. Exploration in MARL is important when studying emergent behaviors.
+
+### 11. RODE: Role-Based Decomposition — Wang et al. (ICLR 2021)
+- **arXiv**: 2011.09189
+- **Key Contribution**: Decomposes joint action space by learning agent roles that restrict available actions, enabling more efficient exploration.
+- **Relevance**: **Moderate**. Role decomposition relates to heterogeneous agent specialization.
+
+### 12. QPLEX: Duplex Dueling Value Decomposition — Wang et al. (ICLR 2021)
+- **arXiv**: 2006.04222
+- **Key Contribution**: More expressive value decomposition than QMIX by using duplex dueling architecture, achieving full expressiveness while maintaining decentralized execution.
+- **Relevance**: **Moderate**. Important value decomposition baseline.
+
+### 13. Weighted QMIX — Rashid et al. (NeurIPS 2020)
+- **arXiv**: 2011.09533
+- **Key Contribution**: Relaxes QMIX&#39;s monotonicity constraint by weighting the projection error, allowing better approximation of the true Q-function.
+- **Relevance**: **Moderate**. Addresses limitations of QMIX&#39;s structural constraints.
+
+### 14. CIA: Contrastive Identity-Aware Learning — Li et al. (AAAI 2022)
+- **arXiv**: 2202.02673
+- **Key Contribution**: Uses contrastive learning to learn identity-aware agent representations for better credit assignment in value decomposition.
+- **Relevance**: **Moderate**. Agent identity differentiation is relevant to heterogeneous settings.
+
+### 15. MACCA: Offline MARL with Causal Credit Assignment — Wang et al. (2023)
+- **arXiv**: 2312.03644
+- **Key Contribution**: Causal reasoning for credit assignment in offline MARL settings.
+- **Relevance**: **Low-Moderate**. Causal approach to credit assignment could inform temporal analysis.
+
+### 16. Hindsight Credit Assignment — Harutyunyan et al. (NeurIPS 2019)
+- **arXiv**: 1912.02503
+- **Key Contribution**: Uses future information to improve temporal credit assignment via hindsight-conditioned policy gradients.
+- **Relevance**: **Moderate**. Temporal credit with hindsight relates to our delayed feedback setting.
+
+---
+
+## Common Methodologies
+
+1. **Value Decomposition**: QMIX, VDN, QPLEX, Weighted QMIX — decompose joint Q-value into individual agent utilities. Used in Papers 5, 12, 13.
+2. **Counterfactual Baselines**: COMA, SQDDPG — assess agent contributions via counterfactual reasoning. Used in Papers 6, related to Paper 2 (Shapley attention).
+3. **Reward Redistribution/Decomposition**: RUDDER, TAR2, STAS — redistribute episodic rewards to per-step signals. Used in Papers 1, 2, 4.
+4. **Hypernetwork-Based Mixing**: QMIX, LICA — use state-conditioned weight generation for mixing. Used in Papers 3, 5.
+5. **Temporal Abstraction**: Options, FeUdal Networks — multi-scale decision-making. Used in Papers 8, 9.
+6. **Macro-Action MARL**: MacDec-POMDP framework — agents execute temporally extended actions of different durations. Used in MacroMARL.
+
+## Standard Baselines
+
+- **QMIX** — primary value decomposition baseline
+- **VDN** — additive value decomposition (simpler baseline)
+- **MAPPO** — strong policy gradient baseline
+- **COMA** — counterfactual credit assignment baseline
+- **Independent PPO/Q-learning** — no credit assignment baseline
+
+## Evaluation Metrics
+
+- **Win rate** (SMAC): percentage of episodes won
+- **Episode return**: cumulative reward per episode
+- **Convergence speed**: training steps to reach threshold performance
+- **Credit assignment quality**: Pearson correlation between assigned credit and ground-truth contributions (STAS)
+- **Variance of policy gradients**: theoretical metric for credit assignment quality (TAR2)
+
+## Datasets/Environments in the Literature
+
+- **SMAC/SMACv2** (StarCraft): Used by QMIX, COMA, MAPPO, LICA, QPLEX, WQMIX, RODE, MAVEN
+- **MPE** (Multi-Agent Particle): Used by LICA, STAS, MADDPG
+- **Alice &amp; Bob** (grid-world): Used by STAS, TAR2
+- **SMACLite**: Used by TAR2
+- **MacDec-POMDP environments** (Box Pushing, Warehouse): Used by MacroMARL, ToMacVF
+
+---
+
+## Gaps and Opportunities
+
+1. **No work addresses emergent hierarchical credit assignment**: Existing methods design hierarchies explicitly (FeUdal) or assume synchronous agents (QMIX, STAS). No one has studied whether hierarchy *emerges* from heterogeneous horizons.
+
+2. **Temporal and agent credit assignment are treated separately**: TAR2 and STAS combine them but in fixed architectures. The interaction between timescale heterogeneity and credit assignment is unexplored.
+
+3. **Mutual information between value functions across timescales is unstudied**: No existing work quantifies cross-timescale information sharing between agent value functions as a measure of emergent coordination.
+
+4. **Asynchronous MARL credit assignment is nascent**: MacroMARL provides the environment framework but lacks sophisticated credit assignment methods. Combining TAR2/STAS-style decomposition with MacDec-POMDP settings is an open direction.
+
+5. **Scalability of joint decomposition**: Both TAR2 and STAS have been tested on relatively small agent counts (≤15). Behavior with heterogeneous horizons at scale is unknown.
+
+---
+
+## Recommendations for Our Experiment
+
+### Recommended Environments
+1. **MacroMARL / MacDec-POMDP environments** — Native support for heterogeneous decision horizons (different macro-action durations). Most directly aligned with the hypothesis.
+2. **Modified MPE via PettingZoo** — Easily customizable for different agent decision frequencies. Fast iteration. Use AEC API for asynchronous stepping.
+3. **SMAC/SMACv2** — For community-standard baseline comparisons.
+
+### Recommended Baselines
+1. **QMIX** — Standard value decomposition
+2. **MAPPO** — Strong policy gradient baseline
+3. **TAR2** — Agent-temporal credit (if reimplementable)
+4. **STAS** — Spatial-temporal decomposition (code available)
+5. **Independent PPO** — No credit assignment control
+
+### Recommended Metrics
+1. **Task performance** (return, win rate) — Does heterogeneous-horizon MARL learn effectively?
+2. **Mutual information** between agent value functions across timescales — Core hypothesis metric
+3. **Emergent hierarchy score** — Measure whether longer-horizon agents develop coordinator-like behavior
+4. **Credit assignment accuracy** — Pearson correlation with ground-truth contributions
+5. **Convergence speed** — Does emergent hierarchy accelerate learning?
+
+### Methodological Considerations
+- Start with MPE for fast prototyping of heterogeneous-horizon mechanics
+- Use MacroMARL for realistic asynchronous evaluation
+- Implement mutual information estimation between value functions using MINE or similar neural estimators
+- Consider both fixed heterogeneous horizons (controlled experiment) and learned horizons (emergent experiment)
+- Use RUDDER&#39;s return-equivalent SDP theory as theoretical foundation for reward redistribution across timescales
+
+
+════════════════════════════════════════════════════════════════════════════════
+                          PAPER REQUIREMENTS
+════════════════════════════════════════════════════════════════════════════════
+
+Generate a complete academic paper with the following structure:
+
+1. TITLE
+   - Clear, specific, informative
+   - Should convey main finding or contribution
+
+2. AUTHOR
+   - Use this exact author line in the \author{} block: NeuriCo
+
+3. ABSTRACT (150-250 words)
+   - Problem statement
+   - Approach
+   - Key results
+   - Significance
+
+4. INTRODUCTION
+   - Research problem and motivation
+   - Gap in existing work
+   - Our contribution (be specific)
+   - Paper organization
+
+5. RELATED WORK
+   - Organized by theme/approach
+   - Position our work relative to prior work
+   - Cite papers from literature review
+
+6. METHODOLOGY
+   - Clear description of approach
+   - Experimental setup
+   - Datasets used
+   - Evaluation metrics
+   - Baselines
+
+7. RESULTS
+   - Present results with tables and figures
+   - Statistical analysis
+   - Comparison to baselines
+   - Ablation studies (if applicable)
+
+8. DISCUSSION
+   - Interpretation of results
+   - Limitations
+   - Broader implications
+
+9. CONCLUSION
+   - Summary of contributions
+   - Key findings
+   - Future work
+
+10. REFERENCES
+   - BibTeX format
+   - All cited papers
+
+════════════════════════════════════════════════════════════════════════════════
+                          OUTPUT FORMAT
+════════════════════════════════════════════════════════════════════════════════
+
+Create a MODULAR LaTeX project with the following directory structure:
+
+paper_draft/
+├── main.tex              # Main file that imports all sections
+├── references.bib        # BibTeX references
+├── sections/
+│   ├── abstract.tex      # Abstract content
+│   ├── introduction.tex  # Introduction section
+│   ├── related_work.tex  # Related work section
+│   ├── methodology.tex   # Methodology section
+│   ├── results.tex       # Results section
+│   ├── discussion.tex    # Discussion section
+│   └── conclusion.tex    # Conclusion section
+├── figures/              # Directory for any generated figures
+├── tables/               # Directory for complex standalone tables
+└── appendix/             # Directory for appendix sections (if needed)
+
+INSTRUCTIONS:
+1. First, create the directory structure above (mkdir -p paper_draft/sections paper_draft/figures paper_draft/tables paper_draft/appendix)
+2. Write main.tex using the EXACT preamble for NEURIPS:
+
+   \documentclass{article}
+   \usepackage[final]{neurips_2025}  % NEURIPS style (neurips_2025.sty is in paper_draft/)
+   \usepackage[hidelinks]{hyperref}  % REQUIRED: clickable links
+   \usepackage{booktabs}  % REQUIRED: professional tables
+   \usepackage{graphicx}
+   \usepackage{amsmath,amssymb}
+
+   % Import command files
+   \input{commands/math}
+   \input{commands/general}
+   \input{commands/macros}
+
+   % Use this bibliography style:
+   \bibliographystyle{plainnat}
+
+   \author{NeuriCo}
+
+   - Use \input{sections/...} to include each section
+   - Use \bibliography{references} for references
+3. Write each section file with COMPLETE content (no placeholders)
+4. Each section file should include its \section{} command
+5. Write references.bib with all citations in BibTeX format
+6. After writing all files, compile the paper:
+   cd paper_draft && pdflatex -interaction=nonstopmode main.tex && bibtex main && pdflatex -interaction=nonstopmode main.tex && pdflatex -interaction=nonstopmode main.tex
+
+This modular structure allows humans to easily:
+- Edit individual sections without navigating a large file
+- Track changes per section
+- Reuse sections across different paper versions
+
+════════════════════════════════════════════════════════════════════════════════
+                          QUALITY REQUIREMENTS
+════════════════════════════════════════════════════════════════════════════════
+
+- Academic tone throughout
+- All claims must be supported by data from the experiment report
+- Proper citations using \cite{} commands
+- Clear figures and tables with proper captions
+- NO placeholder text - every section must have real content
+- The paper MUST compile without errors
+- If compilation fails, debug and fix the LaTeX errors
+
+════════════════════════════════════════════════════════════════════════════════
+                          LAB WRITING STYLE
+════════════════════════════════════════════════════════════════════════════════
+
+Follow these lab-specific conventions to match our paper style:
+
+1. LANGUAGE STYLE:
+   - Use active voice: "We propose", "We examine", "We focus on"
+   - Be direct and confident: "Our main question is...", "We hypothesize that..."
+   - State things clearly and simply - prefer plain language over jargon
+   - Use bold questions as paragraph organizers: {\bf what is X?}
+   - Include specific quantitative claims: "8.97% over baseline"
+   - Avoid fancy wording: "utilize" → "use", "facilitate" → "help"
+
+2. INTRODUCTION STRUCTURE:
+   - Engaging hook (get to the point quickly)
+   - Problem importance
+   - Gap identification
+   - Your approach with method figure reference
+   - Quantitative preview of results
+   - Contribution bullets (3-4 items, action verbs)
+
+3. CONTRIBUTION LISTS:
+   \begin{itemize}[leftmargin=*,itemsep=0pt,topsep=0pt]
+       \item We propose...
+       \item We conduct...
+       \item We complement...
+   \end{itemize}
+
+4. MODULAR COMMANDS STRUCTURE:
+   Command templates are pre-copied to paper_draft/commands/:
+   - math.tex: Math notation macros
+   - general.tex: Formatting macros
+   - macros.tex: Project-specific term definitions (customize this for your paper)
+
+   In main.tex, include:
+   \input{commands/math}
+   \input{commands/general}
+   \input{commands/macros}
+
+5. REFERENCE CONVENTIONS:
+   Use reference macros from math.tex:
+   - \figref{fig:name} for "figure 1" (lowercase, in-sentence)
+   - \Figref{fig:name} for "Figure 1" (capitalized, start of sentence)
+   - \secref{sec:name} for "section 2"
+
+6. TEXT FORMATTING:
+   - Use \para{Header text} for bold paragraph headers
+   - Define method/dataset names with \textsc and \xspace:
+     \newcommand{\methodname}{\textsc{MethodName}\xspace}
+
+7. TABLE FORMATTING:
+   - Use booktabs package (no vertical lines)
+   - Use \resizebox{\textwidth}{!}{...} for wide tables
+   - Use @{} to remove padding at table edges
+   - Use \cmidrule(lr){x-y} for sub-headers
+   - Use \textsc{} for dataset/method names in headers
+   - Bold best results with {\bf ...}
+
+8. FIGURE FORMATTING:
+   - Use 0.32\textwidth for 3-column subfigures
+   - Use 0.95\linewidth for full-width figures
+   - Use \input{figures/legend} for shared legends
+   - Write self-contained captions explaining key observations
+
+9. RESULTS PRESENTATION:
+   - Define \increase and \decrease for colored arrows (green up, red down)
+   - Bold best results in tables
+   - Report confidence intervals when available
+
+10. ALGORITHM STYLING:
+    - Use algpseudocode with [noend]
+    - Use \triangleright for comments
+
+11. HYPERLINKS (REQUIRED):
+    - Always use \usepackage[hidelinks]{hyperref} or with colored links
+    - All citations, section refs, figure refs, table refs must be clickable
+    - This is essential for reader navigation
+
+════════════════════════════════════════════════════════════════════════════════
+                          WORKFLOW: REVIEW AND REFLECT
+════════════════════════════════════════════════════════════════════════════════
+
+Before calling finish, you MUST complete these review steps:
+
+1. REVIEW RESOURCES (at the start):
+   - Read .claude/skills/paper-writer/SKILL.md for detailed guidance
+   - Study templates/paper_writing/lab_style_guide.md for style conventions
+   - Browse paper_examples/ for formatting and language patterns
+
+2. SELF-REFLECTION (before finishing):
+   After writing all sections, review your work against these criteria:
+
+   LANGUAGE CHECK:
+   - [ ] Is the writing clear and jargon-free?
+   - [ ] Are claims specific with quantitative support?
+   - [ ] Is active voice used throughout?
+
+   FORMATTING CHECK:
+   - [ ] Does main.tex include \input{commands/math}, \input{commands/general}, \input{commands/macros}?
+   - [ ] Is hyperref package included for clickable references?
+   - [ ] Do tables use booktabs (no vertical lines)?
+   - [ ] Are best results bolded in tables?
+   - [ ] Are figures/tables properly captioned?
+
+   STRUCTURE CHECK:
+   - [ ] Does introduction follow: hook → importance → gap → approach → preview → contributions?
+   - [ ] Are contribution bullets specific with action verbs?
+   - [ ] Does the paper compile without errors?
+
+3. FIX ISSUES:
+   - Address any issues found in the self-reflection
+   - Re-compile and verify the PDF looks correct
+
+Only after completing this review should you consider the paper finished.

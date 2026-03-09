@@ -1,0 +1,62 @@
+\section{Methodology}
+\label{sec:method}
+
+We design a controlled experimental framework to test whether temporal heterogeneity induces emergent hierarchical credit assignment. We describe the environments (\secref{sec:envs}), agent architecture (\secref{sec:agents}), experimental conditions (\secref{sec:conditions}), and analysis metrics (\secref{sec:metrics}).
+
+\subsection{Cooperative Gridworld Environments}
+\label{sec:envs}
+
+We design three cooperative gridworld environments on an $8 \times 8$ grid with 3 agents and a maximum episode length of 200 steps. Each environment isolates a different aspect of multi-agent coordination under temporal heterogeneity.
+
+\para{\relay.} Agents must visit waypoints sequentially: agent $i$ visits waypoint $i$ in order. This environment has \emph{high temporal sensitivity} because sequential dependencies require agents to coordinate the timing of their actions. Success depends on agents reaching their waypoints in the correct order.
+
+\para{\foraging.} Agents collect resources scattered across the grid. Slower agents receive $2\times$ reward per collection, creating a natural role complementarity between fast scouts and slow collectors. This environment has \emph{low temporal sensitivity} because agents can collect resources independently without tight synchronization.
+
+\para{\rendezvous.} All agents must converge to the center of the grid simultaneously. This environment has the \emph{highest synchronization demand} because all agents must coordinate their arrival times despite moving at different speeds.
+
+\subsection{Agent Architecture and Training}
+\label{sec:agents}
+
+\para{Independent PPO.} We use \ippo---each agent has its own actor-critic network trained with PPO, sharing only the team reward signal. We choose \ippo because it is the minimal multi-agent algorithm: any coordination must emerge from the shared reward rather than explicit communication or parameter sharing. \mappo (shared critic) would confound the analysis by providing explicit cross-agent information, and value decomposition methods (\eg \qmix) impose structural assumptions about credit assignment.
+
+\para{Network architecture.} Each agent's actor-critic network is a 2-layer MLP with 64 hidden units and ReLU activations. The actor and critic share a feature extractor.
+
+\para{Observation space.} Each agent observes its own position (2 dimensions), other agents' positions (4 dimensions), and temporal context features (3 dimensions): normalized timestep $t / T$, normalized action frequency $f_i / f_{\max}$, and phase within the agent's action cycle $\phi_i = (t \mod k_i) / k_i$, where $k_i$ is the number of steps between agent $i$'s actions.
+
+\para{Action space.} All agents share a discrete action space of 5 actions: stay, up, down, left, right. In the heterogeneous condition, agents with action period $k_i > 1$ repeat their last action for $k_i - 1$ steps between decision points.
+
+\para{Hyperparameters.} We use standard PPO hyperparameters: learning rate $3 \times 10^{-4}$, discount $\gamma = 0.99$, GAE parameter $\lambda = 0.95$, clipping $\epsilon = 0.2$, 4 PPO epochs per update, batch size 64, entropy coefficient 0.01. We update every 5 episodes and train for 300 episodes.
+
+\subsection{Experimental Conditions}
+\label{sec:conditions}
+
+We evaluate three conditions across all three environments, yielding $3 \times 3 = 9$ configurations:
+
+\begin{itemize}[leftmargin=*,itemsep=0pt,topsep=0pt]
+    \item \textbf{\hetero}: Agents act at frequencies $1\times$, $2\times$, and $4\times$ (action periods $k = 1, 2, 4$).
+    \item \textbf{\homo}: All agents act every step ($k = 1$ for all).
+    \item \textbf{\ablation}: Same frequencies as \hetero, but temporal context features are replaced with zeros.
+\end{itemize}
+
+We run 5 random seeds per configuration (seeds 42, 123, 456, 789, 1024), yielding 45 total runs. Performance is measured over the last 50 episodes.
+
+\subsection{Analysis Metrics}
+\label{sec:metrics}
+
+\para{Cross-agent mutual information.} We compute the mutual information between agent value functions:
+\begin{equation}
+    I(V_i(t),\, V_j(t + \tau)) = \sum_{v_i, v_j} p(v_i, v_j) \log \frac{p(v_i, v_j)}{p(v_i)\, p(v_j)}
+\label{eq:mi}
+\end{equation}
+where $V_i(t)$ is agent $i$'s value estimate at time $t$, $\tau$ is the time lag, and probabilities are estimated via histogram binning with 20 bins. We compute MI at lag $\tau = 0$ (instantaneous coupling) and the \emph{MI decay rate} as the ratio $I(\tau{=}5) / I(\tau{=}0)$, measuring how MI persists across time lags.
+
+\para{MI asymmetry.} To detect hierarchical credit assignment, we measure the directional MI difference between slow$\to$fast and fast$\to$slow agent pairs. A positive asymmetry (slow$\to$fast $>$ fast$\to$slow) would indicate that slow agents' value functions contain information about fast agents' future values---evidence for implicit modeling.
+
+\para{Agent influence scores.} We compute lagged correlations between changes in agent value functions:
+\begin{equation}
+    \rho_{i \to j}(\tau) = \text{Corr}\!\left(\Delta V_i(t),\, \Delta V_j(t + \tau)\right)
+\label{eq:influence}
+\end{equation}
+where $\Delta V_i(t) = V_i(t+1) - V_i(t)$. Higher correlations indicate stronger inter-agent dependencies.
+
+\para{Statistical testing.} We use Welch's $t$-test for performance comparisons between conditions and report Cohen's $d$ as the effect size. All tests use $\alpha = 0.05$.
