@@ -1,0 +1,64 @@
+idea:
+  title: Emergent Temporal Credit Assignment in Asynchronous Multi-Agent Reinforcement
+    Learning with Heterogeneous Horizons
+  domain: artificial_intelligence
+  hypothesis: 'Multi-agent reinforcement learning systems with heterogeneous decision
+    horizons will spontaneously develop hierarchical temporal credit assignment strategies,
+    where agents with longer horizons learn to implicitly model and compensate for
+    shorter-horizon agents'' delayed feedback. This emergence can be quantified through
+    mutual information between agent value functions across different timescales and
+    will correlate with improved coordination efficiency in tasks requiring asynchronous
+    cooperation.
+
+    '
+  background:
+    description: 'Traditional multi-agent RL assumes synchronized decision-making
+      and uniform temporal horizons, yet real-world coordination often involves agents
+      operating at different timescales with asynchronous feedback. Understanding
+      how agents naturally develop credit assignment strategies under these conditions
+      is crucial for scalable multi-agent systems. Recent work in temporal abstraction
+      and multi-timescale learning suggests emergent coordination mechanisms may arise,
+      but their characterization remains unexplored.
+
+      '
+  methodology:
+    approach: Design controlled multi-agent environments with varying temporal heterogeneity,
+      train agents using decentralized actor-critic methods, and analyze emergent
+      credit assignment patterns through information-theoretic metrics and causal
+      influence analysis.
+    steps:
+    - Implement three gridworld environments with 3-5 agents having different action
+      frequencies (1x, 2x, 4x base rate) and feedback delays (0, 5, 10 timesteps)
+    - Train agents using independent PPO with shared reward signal but individual
+      observation spaces including temporal context features
+    - Extract and visualize temporal credit assignment by computing TD-error propagation
+      patterns, value function gradients across time, and agent-to-agent influence
+      scores
+    - Measure mutual information between agents' value estimates at different time
+      lags to identify emergent temporal dependencies
+    - Conduct ablation studies removing temporal context features to validate that
+      coordination strategies are learned rather than hard-coded
+    - Analyze convergence dynamics and final performance across heterogeneity levels
+      to establish correlation between temporal diversity and coordination quality
+    metrics:
+    - Task success rate and cumulative team reward
+    - "Temporal mutual information I(V_i(t), V_j(t+\u03C4)) between agent value functions\
+      \ across time lags"
+    - Credit assignment depth measured by effective horizon of TD-error propagation
+    - Agent influence scores via counterfactual policy perturbation analysis
+    - Coordination efficiency ratio (synchronized actions / total actions)
+  constraints:
+    compute: cpu_only
+    time_limit: 3600
+  metadata:
+    tags:
+    - multi-agent-rl
+    - temporal-credit-assignment
+    - emergent-behavior
+    - asynchronous-learning
+    - heterogeneous-agents
+    idea_id: emergent_temporal_credit_assig_20260309_051208_35fdb35c
+    created_at: '2026-03-09T05:12:08.522204'
+    status: submitted
+    github_repo_name: temporal-credit-assign-42dd-claude
+    github_repo_url: https://github.com/Hypogenic-AI/temporal-credit-assign-42dd-claude
